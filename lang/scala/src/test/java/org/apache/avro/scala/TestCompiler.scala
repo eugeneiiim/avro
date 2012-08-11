@@ -35,59 +35,14 @@ import org.scalatest.junit.JUnitRunner
 class TestScalaCompiler
   extends FunSuite {
 
-  /** Reads a file content into a text string. */
-  def readFile(file: File): String = {
-    val istream = new FileInputStream(file)
-    require(istream != null)
-    return IOUtils.readLines(istream).asScala.mkString("\n")
-  }
-
-  /** Writes a text file. */
-  def writeFile(file: File, content: String): Unit = {
-    require(file.getParentFile.exists || file.getParentFile.mkdirs())
-    val ostream = new FileOutputStream(file)
-    ostream.write(content.getBytes)
-    ostream.close()
-  }
-
   test("compile") {
     val dir = new File("src/test/resources/testdata")
     require(dir.exists, dir)
     object filter extends FilenameFilter {
       override def accept(dir: File, name: String): Boolean = { return name.endsWith(".avsc") }
     }
-    for (jsonSourceFile <- dir.listFiles(filter)) {
-      val name = jsonSourceFile.getName.stripSuffix(".avsc")
-      val genDir = new File(jsonSourceFile.getParent, "org/apache/avro/scala/test/generated/scala")
-      val scalaFile = new File(genDir, "%s.scala".format(name.toUpperCamelCase))
-      println("%s -> %s".format(jsonSourceFile, scalaFile))
-      val schemaJsonSource = readFile(jsonSourceFile)
-      val schema = Schema.parse(schemaJsonSource)
-      schema.getType match {
-        case Schema.Type.UNION => {
-          val source = new StringBuilder()
-          for (schemaType <- schema.getTypes.asScala) {
-            val compiler = new Compiler(schemaType)
-            val scalaGeneratedSource = compiler.compile()
-            source.append("\n\n").append(scalaGeneratedSource)
-          }
-          if (scalaFile.exists()) {
-            assert(readFile(scalaFile) == source.toString)
-          } else {
-            writeFile(scalaFile, source.toString)
-          }
-        }
-        case Schema.Type.RECORD | Schema.Type.ENUM => {
-          val compiler = new Compiler(schema)
-          val scalaGeneratedSource = compiler.compile()
-          if (scalaFile.exists()) {
-            assert(readFile(scalaFile) == scalaGeneratedSource.toString)
-          } else {
-            writeFile(scalaFile, scalaGeneratedSource)
-          }
-        }
-        case _ => println("Unhandled top-level schema: " + schema)
-      }
-    }
+    val schemaFiles = dir.listFiles(filter)
+    val outDir = new File(dir, "org/apache/avro/scala/test/generated/scala")
+    CompilerApp.compileAndWrite(outDir, schemaFiles)
   }
 }

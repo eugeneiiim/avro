@@ -21,13 +21,13 @@ import java.io.InputStream
 import java.io.ByteArrayOutputStream
 
 import org.apache.avro.AvroRuntimeException
+import org.apache.avro.Schema
 import org.apache.avro.io.Decoder
 import org.apache.avro.io.Encoder
 import org.apache.avro.io.DecoderFactory
 import org.apache.avro.io.EncoderFactory
-import org.apache.avro.specific.SpecificDatumReader
-import org.apache.avro.specific.SpecificDatumWriter
-import org.apache.avro.specific.SpecificRecord
+import org.apache.avro.specific.{SpecificData, SpecificDatumReader, SpecificDatumWriter, SpecificRecord}
+import runtime.ScalaRunTime
 
 class NotImplemented(msg: String) extends AvroRuntimeException(msg)
 class NotAvailable(msg: String) extends AvroRuntimeException(msg)
@@ -52,25 +52,40 @@ trait Decodable {
   def decode(decoder: Decoder): Unit
 }
 
-/** Abstract base class for all Scala records. */
-abstract class RecordBase
+/** Trait for all Scala records. */
+trait RecordBase
   extends SpecificRecord
-  with Encodable {
+  with Encodable
+  with Product {
 
+  def productArity: Int = getSchema.getFields.size
+
+  def productElement(n: Int) = get(n)
+
+  override def equals(other: Any): Boolean = other match {
+    case that: SpecificRecord =>
+      (this canEqual that) &&
+      ScalaRunTime._equals(this, that)
+    case _ => false
+  }
+
+  override def hashCode: Int = ScalaRunTime._hashCode(this)
+
+  override def toString: String = toJson
+
+  def toJson: String = Records.toJson(this)
+}
+
+/** Trait for immutable Scala records. */
+trait ImmutableRecordBase extends RecordBase {
   override def put(index: Int, value: AnyRef): Unit = {
     throw new org.apache.avro.scala.NotAvailable("Immutable record cannot be modified")
   }
-
-  override def toString(): String = {
-    return Records.toJson(this)
-  }
 }
 
-/** Abstract base class for mutable Scala records. */
-abstract class MutableRecordBase
-  extends RecordBase
-  with Decodable {
-
+/** Trait for mutable Scala records. */
+trait MutableRecordBase[T] extends RecordBase with Decodable {
+  def build(): T
 }
 
 /** Helpers to work with records. */
@@ -118,6 +133,40 @@ object Records {
     writer.write(record, encoder)
     encoder.flush()
     return new String(output.toByteArray)
+  }
+
+  private val scalaNamespaceClassLoader = new ScalaNamespaceSuffixSchemaClassLoader
+
+  /**
+  * Deserializes a JSON string into the specified mutable record.
+  *
+  * @param mutableRecord Deserializes into this (mutable) record.
+  * @param input JSON string to deserialize from.
+  * @return The deserialized record.
+  */
+  def mutableFromJson[T <: MutableRecordBase[_]](mutableRecord: T, input: String): T =  {
+    val schema = mutableRecord.getSchema
+    val decoder = (new DecoderFactory).jsonDecoder(schema, input)
+    jsonReader[T](schema).read(mutableRecord, decoder)
+  }
+
+  /**
+  * Deserializes a JSON string to an immutable record with the specified schema.
+  *
+  * @param schema Deserializes using this schema.
+  * @param input JSON string to deserialize from.
+  * @return The deserialized record.
+  */
+  def fromJson[T <: ImmutableRecordBase](schema: Schema, input: String): T = {
+    val decoder = (new DecoderFactory).jsonDecoder(schema, input)
+    val mutableRecord = jsonReader[MutableRecordBase[T]](schema)
+                        .read(null.asInstanceOf[MutableRecordBase[T]], decoder)
+    mutableRecord.build
+  }
+
+  private def jsonReader[T <: MutableRecordBase[_]](schema: Schema): SpecificDatumReader[T] = {
+    val specificData = new SpecificData(scalaNamespaceClassLoader)
+    new SpecificDatumReader[T](schema, schema, specificData)
   }
 
   /**

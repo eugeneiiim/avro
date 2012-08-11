@@ -3,6 +3,9 @@
 package org.apache.avro.scala.test.generated.scala {
 
 import scala.collection.JavaConverters._
+import scala.collection.JavaConversions._
+import java.nio.ByteBuffer
+import org.apache.avro.generic.GenericData
 
 class RecordWithAllTypes(
     val nullField: Null,
@@ -18,13 +21,14 @@ class RecordWithAllTypes(
     val intMapField: Map[String, Int],
     val intArrayArrayField: Seq[Seq[Int]],
     val intMapMapField: Map[String, Map[String, Int]]
-) extends org.apache.avro.scala.RecordBase {
+) extends org.apache.avro.scala.ImmutableRecordBase {
 
   override def getSchema(): org.apache.avro.Schema = {
     return RecordWithAllTypes.schema
   }
 
   override def get(index: Int): AnyRef = {
+    println("Immutable get(%d)" format index)
     index match {
       case 0 => return this.nullField// TODO(taton) Not implemented!!
       case 1 => return this.booleanField.asInstanceOf[AnyRef]
@@ -33,12 +37,12 @@ class RecordWithAllTypes(
       case 4 => return this.floatField.asInstanceOf[AnyRef]
       case 5 => return this.doubleField.asInstanceOf[AnyRef]
       case 6 => return this.stringField// TODO(taton) Not implemented!!
-      case 7 => return this.bytesField// TODO(taton) Not implemented!!
-      case 8 => return this.fixedField// TODO(taton) Not implemented!!
+      case 7 => return ByteBuffer.wrap(bytesField.toArray[Byte])// TODO(taton) Not implemented!!
+      case 8 => return new GenericData.Fixed(getSchema(), fixedField.toArray[Byte])// TODO(taton) Not implemented!!
       case 9 => return this.intArrayField.asJava
       case 10 => return this.intMapField.asJava
-      case 11 => return this.intArrayArrayField.asJava
-      case 12 => return this.intMapMapField.asJava
+      case 11 => return this.intArrayArrayField.map(_.asJava).asJava
+      case 12 => return this.intMapMapField.map { case (k,v) => k -> v.asJava }.asJava
       case _ => throw new org.apache.avro.AvroRuntimeException("Bad index: " + index)
     }
   }
@@ -97,6 +101,11 @@ class RecordWithAllTypes(
     }
     encoder.writeMapEnd()
   }
+
+  def canEqual(other: Any): Boolean =
+    other.isInstanceOf[RecordWithAllTypes] ||
+    other.isInstanceOf[MutableRecordWithAllTypes]
+
 }
 
 class MutableRecordWithAllTypes(
@@ -108,18 +117,21 @@ class MutableRecordWithAllTypes(
     var doubleField: Double = 0,
     var stringField: String = null,
     var bytesField: scala.collection.mutable.Buffer[Byte] = scala.collection.mutable.Buffer[Byte](),
-    var fixedField: Array[Byte] = new Array[Byte](16),
+    var fixedField: Array[Byte] = new Array[Byte](5),
     var intArrayField: scala.collection.mutable.Buffer[Int] = scala.collection.mutable.ArrayBuffer[Int]().asInstanceOf[scala.collection.mutable.Buffer[Int]],
     var intMapField: scala.collection.mutable.Map[String, Int] = scala.collection.mutable.HashMap[String, Int]().asInstanceOf[scala.collection.mutable.Map[String, Int]],
     var intArrayArrayField: scala.collection.mutable.Buffer[scala.collection.mutable.Buffer[Int]] = scala.collection.mutable.ArrayBuffer[scala.collection.mutable.ArrayBuffer[Int]]().asInstanceOf[scala.collection.mutable.Buffer[scala.collection.mutable.Buffer[Int]]],
     var intMapMapField: scala.collection.mutable.Map[String, scala.collection.mutable.Map[String, Int]] = scala.collection.mutable.HashMap[String, scala.collection.mutable.HashMap[String, Int]]().asInstanceOf[scala.collection.mutable.Map[String, scala.collection.mutable.Map[String, Int]]]
-) extends org.apache.avro.scala.MutableRecordBase {
+) extends org.apache.avro.scala.MutableRecordBase[RecordWithAllTypes] {
+
+  def this() = this(null, false, 0, 0, 0, 0, null, scala.collection.mutable.Buffer[Byte](), new Array[Byte](5), scala.collection.mutable.ArrayBuffer[Int]().asInstanceOf[scala.collection.mutable.Buffer[Int]], scala.collection.mutable.HashMap[String, Int]().asInstanceOf[scala.collection.mutable.Map[String, Int]], scala.collection.mutable.ArrayBuffer[scala.collection.mutable.ArrayBuffer[Int]]().asInstanceOf[scala.collection.mutable.Buffer[scala.collection.mutable.Buffer[Int]]], scala.collection.mutable.HashMap[String, scala.collection.mutable.HashMap[String, Int]]().asInstanceOf[scala.collection.mutable.Map[String, scala.collection.mutable.Map[String, Int]]])
 
   override def getSchema(): org.apache.avro.Schema = {
     return RecordWithAllTypes.schema
   }
 
   override def get(index: Int): AnyRef = {
+    println("Mutable get(%d)" format index)
     index match {
       case 0 => return this.nullField// TODO(taton) Not implemented!!
       case 1 => return this.booleanField.asInstanceOf[AnyRef]
@@ -128,17 +140,18 @@ class MutableRecordWithAllTypes(
       case 4 => return this.floatField.asInstanceOf[AnyRef]
       case 5 => return this.doubleField.asInstanceOf[AnyRef]
       case 6 => return this.stringField// TODO(taton) Not implemented!!
-      case 7 => return this.bytesField// TODO(taton) Not implemented!!
-      case 8 => return this.fixedField// TODO(taton) Not implemented!!
+      case 7 => return ByteBuffer.wrap(this.bytesField.toArray[Byte])// TODO(taton) Not implemented!!
+      case 8 => return new GenericData.Fixed(getSchema(), fixedField.toArray[Byte])// TODO(taton) Not implemented!!
       case 9 => return this.intArrayField.asJava
       case 10 => return this.intMapField.asJava
-      case 11 => return this.intArrayArrayField.asJava
-      case 12 => return this.intMapMapField.asJava
+      case 11 => return this.intArrayArrayField.map(_.asJava).asJava
+      case 12 => return this.intMapMapField.map { case (k,v) => k -> v.asJava }.asJava
       case _ => throw new org.apache.avro.AvroRuntimeException("Bad index: " + index)
     }
   }
 
   override def put(index: Int, value: AnyRef): Unit = {
+    println("Mutable put(%d, %s)" format (index, Option(value).map(_.toString).getOrElse("null")))
     index match {
       case 0 => this.nullField = value.asInstanceOf[Null]
       case 1 => this.booleanField = value.asInstanceOf[Boolean]
@@ -146,13 +159,13 @@ class MutableRecordWithAllTypes(
       case 3 => this.longField = value.asInstanceOf[Long]
       case 4 => this.floatField = value.asInstanceOf[Float]
       case 5 => this.doubleField = value.asInstanceOf[Double]
-      case 6 => this.stringField = value.asInstanceOf[String]
-      case 7 => this.bytesField = value.asInstanceOf[scala.collection.mutable.Buffer[Byte]]
-      case 8 => this.fixedField = value.asInstanceOf[Array[Byte]]
-      case 9 => this.intArrayField = value.asInstanceOf[scala.collection.mutable.Buffer[Int]]
-      case 10 => this.intMapField = value.asInstanceOf[scala.collection.mutable.Map[String, Int]]
-      case 11 => this.intArrayArrayField = value.asInstanceOf[scala.collection.mutable.Buffer[scala.collection.mutable.Buffer[Int]]]
-      case 12 => this.intMapMapField = value.asInstanceOf[scala.collection.mutable.Map[String, scala.collection.mutable.Map[String, Int]]]
+      case 6 => this.stringField = value.toString
+      case 7 => this.bytesField = scala.collection.mutable.Buffer[Byte]() ++ value.asInstanceOf[ByteBuffer].array()
+      case 8 => this.fixedField = value.asInstanceOf[GenericData.Fixed].bytes()
+      case 9 => this.intArrayField = /*scala.collection.mutable.Buffer[Int]() ++*/ value.asInstanceOf[GenericData.Array[Int]]
+      case 10 => this.intMapField = value.asInstanceOf[java.util.Map[String, Int]]
+      case 11 => this.intArrayArrayField = scala.collection.mutable.Buffer[scala.collection.mutable.Buffer[Int]]() ++ value.asInstanceOf[GenericData.Array[GenericData.Array[Int]]].map(scala.collection.mutable.Buffer[Int]() ++ _.asInstanceOf[GenericData.Array[Int]])
+      case 12 => this.intMapMapField = value.asInstanceOf[java.util.Map[String, java.util.Map[String, Int]]].map { case (k,v) => k -> v.asScala }
       case _ => throw new org.apache.avro.AvroRuntimeException("Bad index: " + index)
     }
   }
@@ -239,7 +252,7 @@ class MutableRecordWithAllTypes(
     this.doubleField = decoder.readDouble()
     this.stringField = decoder.readString()
     this.bytesField = decoder.readBytes(null).array.toBuffer
-    this.fixedField = { val bytes = new Array[Byte](16); decoder.readFixed(bytes); bytes }
+    this.fixedField = { val bytes = new Array[Byte](5); decoder.readFixed(bytes); bytes }
     this.intArrayField = {
       val array = scala.collection.mutable.ArrayBuffer[Int]()
       var blockSize: Long = decoder.readArrayStart()
@@ -320,6 +333,11 @@ class MutableRecordWithAllTypes(
     map.asInstanceOf[scala.collection.mutable.Map[String, scala.collection.mutable.Map[String, Int]]]
     }
   }
+
+  def canEqual(other: Any): Boolean =
+    other.isInstanceOf[RecordWithAllTypes] ||
+    other.isInstanceOf[MutableRecordWithAllTypes]
+
 }
 
 object RecordWithAllTypes {
@@ -357,8 +375,8 @@ object RecordWithAllTypes {
           |    "name" : "fixed_field",
           |    "type" : {
           |      "type" : "fixed",
-          |      "name" : "anon_fixed_16",
-          |      "size" : 16
+          |      "name" : "anon_fixed_5",
+          |      "size" : 5
           |    }
           |  }, {
           |    "name" : "int_array_field",

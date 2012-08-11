@@ -6,7 +6,7 @@ import scala.collection.JavaConverters._
 
 class UnionSingleton(
     val unionField: org.apache.avro.scala.test.generated.scala.UnionSingleton.UnionFieldUnionType
-) extends org.apache.avro.scala.RecordBase {
+) extends org.apache.avro.scala.ImmutableRecordBase {
 
   override def getSchema(): org.apache.avro.Schema = {
     return UnionSingleton.schema
@@ -22,11 +22,18 @@ class UnionSingleton(
   override def encode(encoder: org.apache.avro.io.Encoder): Unit = {
     this.unionField.encode(encoder)
   }
+
+  def canEqual(other: Any): Boolean =
+    other.isInstanceOf[UnionSingleton] ||
+    other.isInstanceOf[MutableUnionSingleton]
+
 }
 
 class MutableUnionSingleton(
     var unionField: org.apache.avro.scala.test.generated.scala.UnionSingleton.MutableUnionFieldUnionType = null
-) extends org.apache.avro.scala.MutableRecordBase {
+) extends org.apache.avro.scala.MutableRecordBase[UnionSingleton] {
+
+  def this() = this(null)
 
   override def getSchema(): org.apache.avro.Schema = {
     return UnionSingleton.schema
@@ -59,6 +66,11 @@ class MutableUnionSingleton(
   def decode(decoder: org.apache.avro.io.Decoder): Unit = {
     this.unionField = org.apache.avro.scala.test.generated.scala.UnionSingleton.UnionFieldUnionType.decode(decoder)
   }
+
+  def canEqual(other: Any): Boolean =
+    other.isInstanceOf[UnionSingleton] ||
+    other.isInstanceOf[MutableUnionSingleton]
+
 }
 
 object UnionSingleton {

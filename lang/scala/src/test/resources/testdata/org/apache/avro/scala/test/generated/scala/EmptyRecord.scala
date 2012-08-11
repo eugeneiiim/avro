@@ -6,7 +6,7 @@ import scala.collection.JavaConverters._
 
 class EmptyRecord(
     
-) extends org.apache.avro.scala.RecordBase {
+) extends org.apache.avro.scala.ImmutableRecordBase {
 
   override def getSchema(): org.apache.avro.Schema = {
     return EmptyRecord.schema
@@ -22,11 +22,18 @@ class EmptyRecord(
   override def encode(encoder: org.apache.avro.io.Encoder): Unit = {
     
   }
+
+  def canEqual(other: Any): Boolean =
+    other.isInstanceOf[EmptyRecord] ||
+    other.isInstanceOf[MutableEmptyRecord]
+
 }
 
 class MutableEmptyRecord(
     
-) extends org.apache.avro.scala.MutableRecordBase {
+) extends org.apache.avro.scala.MutableRecordBase[EmptyRecord] {
+
+  
 
   override def getSchema(): org.apache.avro.Schema = {
     return EmptyRecord.schema
@@ -59,6 +66,11 @@ class MutableEmptyRecord(
   def decode(decoder: org.apache.avro.io.Decoder): Unit = {
     
   }
+
+  def canEqual(other: Any): Boolean =
+    other.isInstanceOf[EmptyRecord] ||
+    other.isInstanceOf[MutableEmptyRecord]
+
 }
 
 object EmptyRecord {

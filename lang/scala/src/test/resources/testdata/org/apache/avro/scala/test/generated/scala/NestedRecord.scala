@@ -1,5 +1,3 @@
-
-
 // This file is machine-generated.
 
 package org.apache.avro.scala.test.generated.scala {
@@ -8,7 +6,7 @@ import scala.collection.JavaConverters._
 
 class Contained(
     val data: Int
-) extends org.apache.avro.scala.RecordBase {
+) extends org.apache.avro.scala.ImmutableRecordBase {
 
   override def getSchema(): org.apache.avro.Schema = {
     return Contained.schema
@@ -24,11 +22,18 @@ class Contained(
   override def encode(encoder: org.apache.avro.io.Encoder): Unit = {
     encoder.writeInt(this.data)
   }
+
+  def canEqual(other: Any): Boolean =
+    other.isInstanceOf[Contained] ||
+    other.isInstanceOf[MutableContained]
+
 }
 
 class MutableContained(
     var data: Int = 0
-) extends org.apache.avro.scala.MutableRecordBase {
+) extends org.apache.avro.scala.MutableRecordBase[Contained] {
+
+  def this() = this(0)
 
   override def getSchema(): org.apache.avro.Schema = {
     return Contained.schema
@@ -61,6 +66,11 @@ class MutableContained(
   def decode(decoder: org.apache.avro.io.Decoder): Unit = {
     this.data = decoder.readInt()
   }
+
+  def canEqual(other: Any): Boolean =
+    other.isInstanceOf[Contained] ||
+    other.isInstanceOf[MutableContained]
+
 }
 
 object Contained {
@@ -89,7 +99,7 @@ import scala.collection.JavaConverters._
 
 class Container(
     val contained: org.apache.avro.scala.test.generated.scala.Contained
-) extends org.apache.avro.scala.RecordBase {
+) extends org.apache.avro.scala.ImmutableRecordBase {
 
   override def getSchema(): org.apache.avro.Schema = {
     return Container.schema
@@ -105,11 +115,18 @@ class Container(
   override def encode(encoder: org.apache.avro.io.Encoder): Unit = {
     this.contained.encode(encoder)
   }
+
+  def canEqual(other: Any): Boolean =
+    other.isInstanceOf[Container] ||
+    other.isInstanceOf[MutableContainer]
+
 }
 
 class MutableContainer(
     var contained: org.apache.avro.scala.test.generated.scala.MutableContained = null
-) extends org.apache.avro.scala.MutableRecordBase {
+) extends org.apache.avro.scala.MutableRecordBase[Container] {
+
+  def this() = this(null)
 
   override def getSchema(): org.apache.avro.Schema = {
     return Container.schema
@@ -142,6 +159,11 @@ class MutableContainer(
   def decode(decoder: org.apache.avro.io.Decoder): Unit = {
     this.contained = { val record = new org.apache.avro.scala.test.generated.scala.MutableContained(); record.decode(decoder); record }
   }
+
+  def canEqual(other: Any): Boolean =
+    other.isInstanceOf[Container] ||
+    other.isInstanceOf[MutableContainer]
+
 }
 
 object Container {

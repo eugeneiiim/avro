@@ -17,8 +17,7 @@
  */
 package org.apache.avro.scala
 
-import java.io.ByteArrayOutputStream
-import java.io.InputStream
+import java.io.{FilenameFilter, File, ByteArrayOutputStream, InputStream}
 
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.collection.JavaConverters.collectionAsScalaIterableConverter
@@ -37,6 +36,7 @@ import org.apache.avro.specific.SpecificRecord
 import org.apache.avro.AvroRuntimeException
 import org.apache.avro.Schema
 import org.codehaus.jackson.JsonNode
+import org.apache.commons.io.FileUtils
 
 /** Flag to tag mutable vs immutable things. */
 trait MutableFlag
@@ -85,46 +85,47 @@ class Compiler(val schema: Schema) {
     return """
       |class %(className)(
       |%(constructorParams)
-      |) extends org.apache.avro.scala.RecordBase {
+      |) extends org.apache.avro.scala.ImmutableRecordBase {
       |
       |%(getSchema)
       |
       |%(get)
       |
       |%(encode)
+      |
+      |%(canEqual)
+      |
       |}"""
       .stripMargin
       .trim
       .xformat(
         'className -> recordClassName,
+        'mutableRecordClassName -> mutableRecordClassName,
         'constructorParams -> schema.getFields.asScala
           .map(compileField(_))
           .mkString(",\n")
           .indent(4),
         'get -> compileRecordGet().indent(2),
         'getSchema -> compileRecordGetSchema().indent(2),
-        'encode -> compileRecordEncode().indent(2))
+        'encode -> compileRecordEncode().indent(2),
+        'canEqual -> compileCanEqual().indent(2))
   }
 
   /** Compile mutable record class definition. */
   def compileMutableRecord(): String = {
     def compileMutableField(field: Schema.Field): String = {
-      val default =
-        if (field.defaultValue == null) {
-          Compiler.typeNewZeroValue(field.schema)
-        } else {
-          compileDefaultValue(field.schema, field.defaultValue)
-        }
       return "var %(fieldName): %(fieldType) = %(default)".xformat(
         'fieldName -> field.name.toCamelCase,
         'fieldType -> TypeMap(field.schema, Mutable, Abstract, Some(schema, field)),
-        'default -> default)
+        'default -> compileMutableRecordFieldDefaultValue(field))
     }
 
     return """
       |class %(className)(
       |%(recordFields)
-      |) extends org.apache.avro.scala.MutableRecordBase {
+      |) extends org.apache.avro.scala.MutableRecordBase[%(recordClassName)] {
+      |
+      |%(noArgConstructor)
       |
       |%(getSchema)
       |
@@ -137,21 +138,27 @@ class Compiler(val schema: Schema) {
       |%(encode)
       |
       |%(decode)
+      |
+      |%(canEqual)
+      |
       |}"""
       .stripMargin
       .trim
       .xformat(
         'className -> mutableRecordClassName,
+        'recordClassName -> recordClassName,
         'recordFields -> schema.getFields.asScala
           .map(compileMutableField(_))
           .mkString(",\n")
           .indent(4),
+        'noArgConstructor -> compileMutableRecordNoArgsConstructor(schema.getFields.asScala).indent(2),
         'getSchema -> compileRecordGetSchema().indent(2),
         'get -> compileRecordGet().indent(2),
         'put -> compileMutableRecordPut().indent(2),
         'encode -> compileMutableRecordEncode().indent(2),
         'decode -> compileRecordDecode().indent(2),
-        'build -> compileRecordBuild().indent(2))
+        'build -> compileRecordBuild().indent(2),
+        'canEqual -> compileCanEqual().indent(2))
   }
 
   def compileObject(): String = {
@@ -264,6 +271,15 @@ class Compiler(val schema: Schema) {
     throw new RuntimeException("Unhandled default field value: " + default)
   }
 
+  /** Compile default value for a field in a mutable record. */
+  def compileMutableRecordFieldDefaultValue(field: Schema.Field): String = {
+    if (field.defaultValue == null) {
+      Compiler.typeNewZeroValue(field.schema)
+    } else {
+      compileDefaultValue(field.schema, field.defaultValue)
+    }
+  }
+
   def compileRecordGetSchema(): String = {
     return """
        |override def getSchema(): org.apache.avro.Schema = {
@@ -273,6 +289,15 @@ class Compiler(val schema: Schema) {
       .stripMargin
       .trim
       .xformat('objectName -> recordClassName)
+  }
+
+  def compileMutableRecordNoArgsConstructor(fields: Iterable[Schema.Field]): String = {
+    if (fields.isEmpty)  {
+      ""
+    } else {
+      val fieldDefaultValues = fields.map(compileMutableRecordFieldDefaultValue)
+      "def this() = this(%s)".format(fieldDefaultValues.mkString(", "))
+    }
   }
 
   def compileRecordGet(): String = {
@@ -307,11 +332,18 @@ class Compiler(val schema: Schema) {
   }
 
   def compileMutableRecordPut(): String = {
+    def MakeFieldPutValue(field: Schema.Field): String = {
+      field.schema.getType match {
+        case Schema.Type.STRING => "value.toString"
+        case _ => "value.asInstanceOf[%s]".format(
+          TypeMap(field.schema, Mutable, Abstract, Some(schema, field)))
+      }
+    }
     def MakeFieldPutCase(field: Schema.Field): String = {
-      return "case %d => this.%s = value.asInstanceOf[%s]".format(
+      return "case %d => this.%s = %s".format(
         field.pos,
         field.name.toCamelCase,
-        TypeMap(field.schema, Mutable, Abstract, Some(schema, field)))
+        MakeFieldPutValue(field))
     }
     val fields = schema.getFields.asScala.map(MakeFieldPutCase(_))
     return """
@@ -426,6 +458,16 @@ class Compiler(val schema: Schema) {
       .xformat(
         'className -> recordClassName,
         'fields -> fields.mkString(",\n").indent(4))
+  }
+
+  def compileCanEqual(): String = {
+    """
+      |def canEqual(other: Any): Boolean =
+      |  other.isInstanceOf[%(recordClassName)] ||
+      |  other.isInstanceOf[%(mutableRecordClassName)]"""
+      .stripMargin.trim.xformat(
+      'recordClassName -> recordClassName,
+      'mutableRecordClassName -> mutableRecordClassName)
   }
 
   private final val TripleQuotes = "\"" * 3
@@ -612,4 +654,73 @@ object Compiler {
     throw new RuntimeException("Unhandled zero value type: " + schema)
   }
 
+  def compile(jsonSchemaFile: File): String = {
+    val schemaJsonSource = FileUtils.readFileToString(jsonSchemaFile)
+    val schema = Schema.parse(schemaJsonSource)
+    schema.getType match {
+      case Schema.Type.UNION => {
+        schema.getTypes.asScala.map { schemaType =>
+          val compiler = new Compiler(schemaType)
+          compiler.compile()
+        }.mkString("\n\n")
+      }
+      case Schema.Type.RECORD | Schema.Type.ENUM => {
+        val compiler = new Compiler(schema)
+        compiler.compile()
+      }
+      case _ => throw new Exception("Unhandled top-level schema: " + schema)
+    }
+  }
+}
+
+object CompilerApp extends scala.App {
+  if (args.size < 2) {
+    printHelp()
+    sys.exit(1)
+  }
+
+  val fileArgs = args.map { path =>
+    val f = new File(path)
+    if (!f.exists) {
+      println("CompilerApp: %s: No such file or directory" format f.getPath)
+      sys.exit(2)
+    }
+  }
+
+  val outDir = new File(args(0))
+  require(outDir.isDirectory && outDir.exists, outDir)
+  val schemaPaths = args.drop(1)
+  val schemaObjs = schemaPaths.map(new File(_))
+  val schemaFiles = schemaObjs.filter(_.isFile)
+  val schemaDirs = schemaObjs.filter(_.isDirectory)
+
+  compileAndWrite(outDir, schemaFiles)
+  for (schemaDir <- schemaDirs) {
+    println(schemaDir + ":")
+    compileAndWrite(outDir, schemaDir)
+  }
+
+  def compileAndWrite(outDir: File, schemaDir: File) {
+    require(schemaDir.exists, schemaDir)
+    object filter extends FilenameFilter {
+      override def accept(dir: File, name: String): Boolean = name.endsWith(".avsc")
+    }
+    val schemaFiles = schemaDir.listFiles(filter)
+    compileAndWrite(outDir, schemaFiles)
+  }
+
+  def compileAndWrite(outDir: File, schemaFiles: Iterable[File]) {
+    for (schemaFile <- schemaFiles) {
+      val name = schemaFile.getName.stripSuffix(".avsc")
+      val scalaFile = new File(outDir, "%s.scala".format(name.toUpperCamelCase))
+      println("%s -> %s".format(schemaFile.getName, scalaFile.getName))
+      val scalaSource = Compiler.compile(schemaFile)
+      require(scalaFile.getParentFile.exists || scalaFile.getParentFile.mkdirs())
+      FileUtils.writeStringToFile(scalaFile, scalaSource)
+    }
+  }
+
+  def printHelp() {
+    println("Usage: CompilerApp OUTDIR SCHEMAPATH...")
+  }
 }

@@ -6,7 +6,7 @@ import scala.collection.JavaConverters._
 
 class UnionOptional(
     val optionalField: Option[Int]
-) extends org.apache.avro.scala.RecordBase {
+) extends org.apache.avro.scala.ImmutableRecordBase {
 
   override def getSchema(): org.apache.avro.Schema = {
     return UnionOptional.schema
@@ -31,11 +31,18 @@ class UnionOptional(
       }
     }
   }
+
+  def canEqual(other: Any): Boolean =
+    other.isInstanceOf[UnionOptional] ||
+    other.isInstanceOf[MutableUnionOptional]
+
 }
 
 class MutableUnionOptional(
     var optionalField: Option[Int] = null
-) extends org.apache.avro.scala.MutableRecordBase {
+) extends org.apache.avro.scala.MutableRecordBase[UnionOptional] {
+
+  def this() = this(null)
 
   override def getSchema(): org.apache.avro.Schema = {
     return UnionOptional.schema
@@ -80,6 +87,11 @@ class MutableUnionOptional(
       case 1 => Some(decoder.readInt())
     }
   }
+
+  def canEqual(other: Any): Boolean =
+    other.isInstanceOf[UnionOptional] ||
+    other.isInstanceOf[MutableUnionOptional]
+
 }
 
 object UnionOptional {
