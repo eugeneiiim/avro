@@ -272,7 +272,8 @@ class Compiler(val schema: Schema) {
         | Schema.Type.DOUBLE => return default.getDoubleValue.toString
       case Schema.Type.ARRAY => {
         val values = (0 until default.size).map(default.get(_).toString)
-        return "List(%s)".format(values.mkString(", "))
+        val listType = if (mutableFlag == Mutable) "collection.mutable.ListBuffer" else "List"
+        return "%s(%s)".format(listType, values.mkString(", "))
       }
       case Schema.Type.MAP => {
         val values = default.getFields.asScala.map { entry =>
